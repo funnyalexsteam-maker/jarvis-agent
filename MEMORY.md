@@ -32,9 +32,9 @@
 
 > Сюда дописывайте: серверы (VPS, IP, доступы), домены, базы данных, ключевые шаблоны deploy-команд. Чтобы Агент мог работать с инфраструктурой не переспрашивая.
 
-- **VPS (Beget), IP 159.194.208.238** — Ubuntu 26.04, пользователь `agent`, файлы Агента в `/home/agent/workspace/`, скиллы в `/home/agent/.claude/`. Установлено 2026-09-06: Node.js 20, Claude Code CLI, VS Code CLI. Доступ по root — через SSH-ключ (пароль root не используется и нигде не хранится).
-- **Telegram-бот на VPS** — systemd-сервис `agent-bot` (автозапуск включён), код в `/home/agent/.agent/bot/`, токен в `/home/agent/.agent/.env`. Управление: `systemctl status/restart agent-bot`, логи `journalctl -u agent-bot`.
-- Остались ручные шаги (нельзя сделать за пользователя): настроить VS Code Tunnel на сервере и авторизовать `claude auth login` под пользователем agent — см. `memory/2026-09-06.md`.
+- **VPS (Beget), IP 159.194.208.238** — Ubuntu 26.04, пользователь `agent`, файлы Агента в `/home/agent/workspace/`, скиллы в `/home/agent/.claude/`. Установлено 2026-09-06: Node.js 20, Claude Code CLI (авторизован под agent), VS Code CLI. Доступ по root — через SSH-ключ (пароль root не используется и нигде не хранится).
+- **VS Code Tunnel** — постоянный (`code-tunnel.service`, systemd --user под root, linger включён), имя туннеля `jarvis-vps`, подключение через vscode.dev/Remote Explorer → папка `/home/agent/workspace/`.
+- **Telegram-бот на VPS** — systemd-сервис `agent-bot` (автозапуск включён), код в `/home/agent/.agent/bot/`, токен в `/home/agent/.agent/.env`. Управление: `systemctl status/restart agent-bot`, логи `journalctl -u agent-bot`. Работает полностью, установка завершена.
 
 ---
 

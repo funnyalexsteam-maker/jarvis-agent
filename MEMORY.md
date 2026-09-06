@@ -14,7 +14,9 @@
 
 > Дописывайте по мере появления. Telegram, GitHub, email, ключевые аккаунты сервисов.
 
-*Пока пусто.*
+- **Telegram:** @smolin_17 (https://t.me/smolin_17)
+- **Email:** funnyalex.steam@gmail.com
+- **GitHub:** https://github.com/funnyalexsteam-maker
 
 ---
 

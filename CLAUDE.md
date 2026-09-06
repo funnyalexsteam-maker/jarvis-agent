@@ -149,6 +149,21 @@
 
 ---
 
+## Моя команда
+
+Установленные скиллы (`.claude/skills/`):
+- discovery-interview — интервью для сбора ТЗ
+- content-creator — контент для блога/соцсетей
+- frontend-design — вёрстка интерфейсов
+- fullstack-developer — full-stack разработка (React/Node/БД)
+- reminder — напоминания и регулярные задачи
+- server-setup — установка Агента на VPS
+
+Плагины (`.claude/settings.json` → `enabledPlugins`):
+- superpowers@claude-plugins-official
+
+---
+
 ## Планирование
 
 Для ЛЮБОЙ задачи с 3+ шагами — СНАЧАЛА составь план:

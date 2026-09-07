@@ -31,7 +31,19 @@ function readLines(file) {
   return lines;
 }
 
+function backupBeforeWrite(file) {
+  // Лучший эффорт: сохраняем последнюю рабочую копию перед перезаписью,
+  // чтобы обнуление/порча .env не было необратимым (см. инцидент с safeEnvRemove).
+  try {
+    if (existsSync(file)) {
+      const raw = readFileSync(file, "utf8");
+      if (raw.length > 0) writeFileSync(`${file}.bak`, raw, { mode: 0o600 });
+    }
+  } catch {}
+}
+
 function atomicWrite(file, content) {
+  backupBeforeWrite(file);
   const tmp = `${file}.tmp.${process.pid}.${Date.now()}`;
   try {
     writeFileSync(tmp, content, { encoding: "utf8", mode: 0o600 });
@@ -70,7 +82,20 @@ export function safeEnvWrite(file, key, value) {
 export function safeEnvRemove(file, key) {
   if (!file || !key) throw new Error("safeEnvRemove: file and key required");
   if (!existsSync(file)) return;
-  const lines = readLines(file).filter((l) => !l.startsWith(`${key}=`));
+  const before = readLines(file);
+  const lines = before.filter((l) => !l.startsWith(`${key}=`));
+  // Если после удаления ключа не осталось ни одной строки, а файл не был
+  // уже пустым — это аномалия (например, .env содержал только этот ключ),
+  // а не намеренная очистка. Тихая запись 0 байт однажды уже стёрла
+  // BOT_TOKEN и остальные переменные из .env и уронила бота в краш-луп.
+  // Лучше громко упасть здесь и оставить файл как есть — вызывающий код
+  // (см. /reauth в index.js) уже оборачивает вызов в try/catch и сообщает
+  // пользователю об ошибке, не убивая процесс.
+  if (lines.length === 0 && before.length > 0) {
+    throw new Error(
+      `safeEnvRemove: удаление "${key}" оставило бы .env пустым — отменено, файл не тронут`
+    );
+  }
   atomicWrite(file, lines.length === 0 ? "" : lines.join("\n") + "\n");
 }
 

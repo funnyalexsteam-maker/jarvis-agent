@@ -55,6 +55,9 @@
   "effortLevel": "xhigh",
   "skipDangerousModePermissionPrompt": true,
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true
+    "superpowers@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "superdesign@claude-plugins-official": true,
+    "carbone-skill@claude-plugins-official": true
   }
 }

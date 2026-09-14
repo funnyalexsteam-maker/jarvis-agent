@@ -160,7 +160,10 @@
 - server-setup — установка Агента на VPS
 
 Плагины (`.claude/settings.json` → `enabledPlugins`):
-- superpowers@claude-plugins-official
+- superpowers@claude-plugins-official — брейнштормы, TDD, планирование, code review
+- claude-code-setup@claude-plugins-official — советы по автоматизации самого Claude Code
+- superdesign@claude-plugins-official — canvas-дизайн (мокапы, лендинги, постеры)
+- carbone-skill@claude-plugins-official — шаблонизация документов (DOCX/XLSX/PDF из данных)
 
 ---
 

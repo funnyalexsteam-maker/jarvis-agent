@@ -6,6 +6,7 @@
  * Commands:
  *   add '{"name":"...", "type":"daily", ...}'
  *   list
+ *   agenda [today|tomorrow|week|month]
  *   search "text"
  *   remove <id>
  *   update <id> '{"hour": 8}'
@@ -66,7 +67,7 @@ function fail(error) {
 // ─── Validation ──────────────────────────────────────────────────────────────
 
 const VALID_TYPES = ["daily", "weekly", "once"];
-const VALID_PAYLOADS = ["reminder", "task"];
+const VALID_PAYLOADS = ["reminder", "task", "note"];
 
 function validate(entry) {
   if (!entry.name) fail("name is required");
@@ -96,6 +97,7 @@ function validate(entry) {
   if (!VALID_PAYLOADS.includes(payload)) fail(`payload must be: ${VALID_PAYLOADS.join(", ")}`);
   if (payload === "reminder" && !entry.text) fail("text is required for reminder payload");
   if (payload === "task" && !entry.prompt) fail("prompt is required for task payload");
+  if (payload === "note" && !entry.text) fail("text is required for note payload");
 }
 
 // ─── Commands ────────────────────────────────────────────────────────────────
@@ -103,7 +105,7 @@ function validate(entry) {
 const [command, ...args] = process.argv.slice(2);
 
 if (!command) {
-  fail("Usage: manage-schedule.js <add|list|search|remove|update|enable|disable> [args]");
+  fail("Usage: manage-schedule.js <add|list|agenda|search|remove|update|enable|disable> [args]");
 }
 
 const schedules = loadSchedules();
@@ -132,7 +134,7 @@ switch (command) {
       ...(entry.text && { text: entry.text }),
       ...(entry.prompt && { prompt: entry.prompt }),
       enabled: true,
-      deleteAfterRun: entry.type === "once" ? true : false,
+      deleteAfterRun: entry.type === "once" && entry.payload !== "note",
       createdAt: new Date().toISOString(),
     };
 
@@ -157,6 +159,75 @@ switch (command) {
       active,
       inactive,
     });
+    break;
+  }
+
+  case "agenda": {
+    const period = (args[0] || "today").toLowerCase();
+    const RANGES = { today: [0, 1], tomorrow: [1, 2], week: [0, 7], month: [0, 30] };
+    if (!RANGES[period]) fail(`period must be one of: ${Object.keys(RANGES).join(", ")}`);
+    const tz = getTimezone();
+
+    function zonedParts(date) {
+      const dtf = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour12: false,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      return dtf.formatToParts(date).reduce((acc, x) => ((acc[x.type] = x.value), acc), {});
+    }
+
+    // Real absolute instant for local midnight, `dayOffset` days from today, in tz
+    function zonedMidnight(dayOffset) {
+      const now = new Date();
+      const p = zonedParts(now);
+      const offsetMs = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - now.getTime();
+      const localMidnightAsUTC = Date.UTC(+p.year, +p.month - 1, +p.day + dayOffset, 0, 0, 0);
+      return new Date(localMidnightAsUTC - offsetMs);
+    }
+
+    const [fromOffset, toOffset] = RANGES[period];
+    const rangeStart = zonedMidnight(fromOffset);
+    const rangeEnd = zonedMidnight(toOffset);
+
+    const days = [];
+    for (let i = fromOffset; i < toOffset; i++) {
+      const dayStart = zonedMidnight(i);
+      const p = zonedParts(new Date(dayStart.getTime() + 12 * 3600 * 1000)); // noon: DST-safe read of Y-M-D
+      const ymd = `${p.year}-${p.month}-${p.day}`;
+      const weekdayNum = new Date(Date.UTC(+p.year, +p.month - 1, +p.day)).getUTCDay();
+      days.push({ ymd, weekday: weekdayNum === 0 ? 7 : weekdayNum });
+    }
+
+    const items = [];
+    for (const s of schedules) {
+      if (!s.enabled) continue;
+      const hm = `${String(s.hour ?? 0).padStart(2, "0")}:${String(s.minute || 0).padStart(2, "0")}`;
+      const base = { id: s.id, name: s.name, payload: s.payload, text: s.text || null, prompt: s.prompt || null };
+
+      if (s.type === "once") {
+        const at = new Date(s.at);
+        if (at >= rangeStart && at < rangeEnd) {
+          items.push({ ...base, when: at.toLocaleString("ru-RU", { timeZone: tz }), sortKey: at.toISOString() });
+        }
+      } else if (s.type === "weekly") {
+        for (const day of days) {
+          if (s.weekdays?.includes(day.weekday)) {
+            items.push({ ...base, when: `${day.ymd} ${hm}`, sortKey: `${day.ymd}T${hm}` });
+          }
+        }
+      } else if (s.type === "daily") {
+        items.push({ ...base, when: `ежедневно в ${hm}`, sortKey: `0000-00-00T${hm}` });
+      }
+    }
+
+    items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    ok(`Период: ${period}. Найдено: ${items.length}`, { period, items });
     break;
   }
 
@@ -232,5 +303,5 @@ switch (command) {
   }
 
   default:
-    fail(`Unknown command: ${command}. Available: add, list, search, remove, update, enable, disable`);
+    fail(`Unknown command: ${command}. Available: add, list, agenda, search, remove, update, enable, disable`);
 }

@@ -58,6 +58,10 @@
     "superpowers@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
     "superdesign@claude-plugins-official": true,
-    "carbone-skill@claude-plugins-official": true
+    "carbone-skill@claude-plugins-official": true,
+    "handoff-engineering@claude-code-skills": true,
+    "security-guidance@claude-code-skills": true,
+    "agent-launcher-skills@claude-code-skills": true,
+    "video-content-strategist@claude-code-skills": true
   }
 }

@@ -1,57 +1,57 @@
-# Kwork gig evaluator — design
+# Оценщик заказов Kwork — дизайн
 
-## Purpose
+## Зачем
 
-Александр works Kwork as a freelance channel for automation/bot/web-dev work, currently to build up reviews/reputation, with only 30 responses per month. Evaluating each incoming job posting (fit, red flags, price, whether to respond) has so far happened manually in a Claude Code chat, one posting at a time. This project turns that manual reasoning into a reusable Claude Code skill: paste a Kwork job posting, get a structured verdict back, invokable both from a local Claude Code session and from the Jarvis Telegram bot on the VPS.
+Александр использует Kwork как канал для поиска заказов по автоматизации/ботам/веб-разработке. Сейчас цель — наработать отзывы и репутацию, при лимите в 30 откликов в месяц. Оценка каждого входящего заказа (подходит ли, есть ли red flags, какая цена, стоит ли откликаться) до сих пор делалась вручную, по одному заказу за раз, в чате с Claude Code. Этот проект превращает эту ручную логику в переиспользуемый skill: вставляешь текст заказа с Kwork — получаешь структурированный вердикт. Работает и локально в Claude Code, и через Jarvis-бота в Telegram на VPS.
 
-## Scope
+## Объём работы
 
-**v1 (this spec):** a single skill, `/evaluate-gig`, that takes pasted job-posting text and returns a verdict. No code, no service, no persistence — pure prompt/criteria logic in a SKILL.md.
+**v1 (эта спека):** один skill, `/evaluate-gig`, принимает вставленный текст заказа и выдаёт вердикт. Никакого кода, никакого сервиса, никакого хранения данных — чистая логика критериев в SKILL.md.
 
-**Explicitly out of scope (deferred to v2):** an automated parser that pulls new Kwork postings without the user pasting them (mirroring what `scout-agent` does for FL.ru's RSS feed). Kwork has no known public feed/API for this, so v2 will need its own feasibility spike before design. Not addressed here.
+**Явно вне объёма (отложено на v2):** автоматический парсер, который сам подтягивает новые заказы с Kwork без ручной вставки (по аналогии с тем, как `scout-agent` мониторит RSS-ленту fl.ru). У Kwork нет известного публичного фида/API для этого, поэтому v2 потребует отдельного исследования (spike) перед дизайном. Здесь не рассматривается.
 
-## Location
+## Расположение
 
 ```
 Jarvis/.claude/skills/evaluate-gig/
   SKILL.md
 ```
 
-Follows the same pattern as the existing `reminder` skill (single `SKILL.md`, no wrapper files). This is a project-authored custom skill under `.claude/skills/`, distinct from the marketplace plugins listed in `enabledPlugins` in `.claude/settings.json` (claude-code-setup, superdesign, carbone-skill, etc.) and distinct from the public course skill library at `Jarvis/skills/` (`global/`, `custom/`), which is student-facing template content for the "Архитектор нейросотрудников" course, not runtime tooling for Александр's own use.
+Повторяет структуру уже существующего skill `reminder` (один файл SKILL.md, без обёрток). Это собственный skill проекта в `.claude/skills/`, отдельно от маркетплейс-плагинов, перечисленных в `enabledPlugins` в `.claude/settings.json` (claude-code-setup, superdesign, carbone-skill и т.д.), и отдельно от публичной библиотеки skill'ов в `Jarvis/skills/` (`global/`, `custom/`) — та предназначена для студентов курса «Архитектор нейросотрудников», а не для рабочих инструментов самого Александра.
 
-Works two ways once deployed:
-- Locally in Claude Code, whenever the Jarvis repo (or this skill specifically) is available to the session.
-- Through the Jarvis Telegram bot on the VPS, after the skill is deployed there the same way `reminder` was (see jarvis-bot-deployment memory) — the bot has no shared context with local Claude Code sessions, so the skill's criteria must be fully self-contained in SKILL.md, not dependent on anything from this conversation.
+После деплоя работает двумя способами:
+- Локально в Claude Code, когда репозиторий Jarvis (или конкретно этот skill) доступен сессии.
+- Через Jarvis-бота в Telegram на VPS, после деплоя skill туда так же, как деплоился `reminder` (см. память jarvis-bot-deployment) — у бота нет общего контекста с локальными сессиями Claude Code, поэтому критерии должны быть полностью самодостаточны внутри SKILL.md, без опоры на что-либо из этого разговора.
 
-## Skill behavior
+## Поведение skill'а
 
-### Input
-Free-text job posting pasted by the user (Kwork listing: title + ТЗ + any stated price).
+### Вход
+Свободный текст заказа, вставленный пользователем (объявление с Kwork: заголовок + ТЗ + указанная цена, если есть).
 
-### Criteria (encoded in SKILL.md)
+### Критерии (зашиты в SKILL.md)
 
-**Niche fit** — in-profile: automation, Telegram/Discord bots, landing pages/websites, API integrations, simple web dev (auth, DB, forms). Out-of-profile: design, copywriting, video editing, marketing analytics. Out-of-profile is *not* an automatic skip (see below).
+**Соответствие нише** — по профилю: автоматизация, боты (Telegram/Discord), лендинги/сайты, интеграции API, простая веб-разработка (авторизация, БД, формы). Не по профилю: дизайн, копирайтинг, видеомонтаж, маркетинг-аналитика. Несоответствие нише — не автоматический отказ (см. ниже).
 
-**Kwork's 30-response/month economics** — current goal is building reviews/reputation, not maximizing income or portfolio fit. So an out-of-profile posting is still worth taking if: it's short and well-defined, low risk of missing the deadline, and the client is likely to leave a review (typical small, low-ambiguity job). Skip: postings that are effectively unwinnable (heavy underbidding competition, dozens of freelancers will respond in minutes), postings with a brief too vague to scope without back-and-forth that eats the response budget, and postings with red-flag/stop-factor content.
+**Экономика лимита 30 откликов/месяц на Kwork** — сейчас цель — наработка отзывов и репутации, а не максимизация дохода или портфолио. Поэтому заказ не по нише всё равно стоит брать, если: он короткий и понятный, риск не уложиться в срок низкий, а клиент с высокой вероятностью оставит отзыв (типичный небольшой заказ без двусмысленностей). Пропускать: заведомо проигрышные заказы (демпинг-конкуренция, где десятки фрилансеров зайдут за минуты), заказы с брифом слишком расплывчатым, чтобы оценить объём без долгой переписки, съедающей лимит откликов, и заказы с признаками red flags/стоп-факторов.
 
-**Hard stop-factors (skip regardless of platform economics)** — anything requesting evasion of security/antivirus detection without a legitimate remediation purpose, collecting others' personal data without legal basis, or anything that amounts to laundering a malicious site's reputation. These override the "take it for reviews" logic entirely.
+**Жёсткие стоп-факторы (отказ независимо от экономики площадки)** — всё, что просит обойти системы безопасности/антивирусный детект без легитимной цели устранения проблемы, сбор чужих персональных данных без правовых оснований, или что-либо, что по сути является отбеливанием репутации вредоносного сайта. Эти факторы перекрывают логику "взять ради отзыва" полностью.
 
-**Price** — rough ranges per work type (bots, landing pages, integrations, small fixes/forms), reusing the figures established in this conversation, so the skill doesn't re-derive pricing from scratch each time.
+**Цена** — примерные вилки по типам работ (боты, лендинги, интеграции, мелкие правки/формы), на основе цифр, которые уже использовались в этом разговоре, чтобы не пересчитывать с нуля каждый раз.
 
-### Output format
-1. **Verdict** — take / skip / ask for clarification first
-2. **Red flags** (if any)
-3. **Price** (if verdict is "take")
-4. **Draft response** (only if verdict is "take") — first person, Александр's own voice, no em-dashes, matching the style used in this conversation's drafts
+### Формат вывода
+1. **Вердикт** — брать / не брать / сначала уточнить
+2. **Red flags** (если есть)
+3. **Цена** (если вердикт "брать")
+4. **Черновик отклика** (только если вердикт "брать") — от первого лица, в стиле Александра, без двойных тире, в тоне, который использовался в черновиках этого разговора
 
-## Rollout
+## Раскатка
 
-1. Build the skill in the Jarvis repo, `Jarvis/.claude/skills/evaluate-gig/SKILL.md`.
-2. Test `/evaluate-gig` locally against a few real Kwork postings, including ones already manually evaluated in this conversation, and compare verdicts for consistency.
-3. Deploy to the VPS the same way `reminder` was deployed (see jarvis-bot-deployment memory), and verify `/evaluate-gig` works through the Jarvis Telegram bot.
-4. **Only after step 3 is verified**, and with explicit user confirmation at that point, retire `Personal\scout-agent\` (repo + GitHub remote) — its FL.ru-monitoring purpose is being superseded by this new evaluator for the platform Александр is actually focusing on (Kwork). This is a separate, explicitly-confirmed step, not automatic once the skill ships.
+1. Собрать skill в репозитории Jarvis: `Jarvis/.claude/skills/evaluate-gig/SKILL.md`.
+2. Протестировать `/evaluate-gig` локально на нескольких реальных заказах с Kwork, включая уже разобранные вручную в этом разговоре, сверить вердикты на согласованность.
+3. Задеплоить на VPS так же, как деплоился `reminder` (см. память jarvis-bot-deployment), проверить, что `/evaluate-gig` работает через Jarvis-бота в Telegram.
+4. **Только после подтверждённого шага 3**, и с явным согласием пользователя на этом этапе — удалить `Personal\scout-agent\` (репозиторий + GitHub remote), поскольку его назначение (мониторинг fl.ru) заменяется новым оценщиком под площадку, на которой Александр реально сейчас фокусируется (Kwork). Это отдельный, явно подтверждаемый шаг, не происходящий автоматически после релиза skill'а.
 
-## v2 (not designed here)
+## v2 (не проектируется здесь)
 
-- A Kwork posting parser/poller feeding postings into the same evaluator automatically, mirroring `scout-agent`'s FL.ru RSS monitor. Needs its own feasibility spike first (Kwork has no known public feed/API — likely needs scraping or an unofficial approach, TOS considerations apply).
-- If posting volume grows enough that the free-text criteria in SKILL.md become inconsistent between runs, consider extracting weighted rules into a structured config file (criteria.json) — deferred per the "Approach A first, B if needed" decision made during design.
+- Парсер/поллер заказов Kwork, автоматически подающий заказы в тот же оценщик, по аналогии с RSS-мониторингом fl.ru в `scout-agent`. Требует отдельного исследования на реализуемость (у Kwork нет известного публичного фида/API — вероятно, потребуется скрапинг или неофициальный подход, с учётом условий использования площадки).
+- Если объём заказов вырастет настолько, что текстовые критерии в SKILL.md станут давать несогласованные результаты между запусками — рассмотреть вынос взвешенных правил в структурированный конфиг (criteria.json). Отложено согласно решению "сначала вариант A, вариант B при необходимости", принятому на этапе дизайна.

@@ -237,7 +237,7 @@ Using the pattern found in Step 5, manually run the equivalent of a user message
 - SSHing in and invoking the CLI the same way `bot/index.js` does, or
 - sending the posting to the Jarvis bot for real via Telegram, if that's faster to confirm.
 
-Expected: response follows the same format verified locally in Task 2 (вердикт → red flags if any → цена → черновик отклика), confirming the bot picks up the new skill without a restart (per jarvis-agent-setup, the bot spawns a fresh `claude` CLI process per message, so no `systemctl restart agent-bot` should be needed — but if the smoke test fails, try the restart and re-test before assuming something else is wrong).
+Expected: response follows the same format verified locally in Task 2 (вердикт → red flags if any → цена → черновик отклика), confirming the bot picks up the new skill without a restart (the bot spawns a fresh `claude` CLI process per message, so no restart should be needed). The bot is a bare detached Node.js process, NOT a systemd service — `systemctl restart agent-bot` will NOT work (no sudo for the `agent` user). If the smoke test fails and a restart genuinely seems needed, find the live PID first (`ssh scout-vps "ps aux | grep '[n]ode.*bot'"`), `kill` it, then relaunch detached from `/home/agent/.agent/bot` the same way it was started before (setsid/nohup + disown) — see jarvis-bot-deployment memory for the full procedure — and re-test before assuming something else is wrong.
 
 - [ ] **Step 7: Report the smoke-test result to Александр**
 

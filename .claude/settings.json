@@ -44,7 +44,11 @@
       "Edit(//**/.env)",
       "Edit(//**/.env.*)",
       "Bash(cat /**/.env)",
-      "Bash(cat /**/.env.*)"
+      "Bash(cat /**/.env.*)",
+      "Bash(systemctl stop:*)",
+      "Bash(systemctl disable:*)",
+      "Bash(docker system prune:*)",
+      "Bash(npm publish:*)"
     ],
     "defaultMode": "bypassPermissions",
     "additionalDirectories": [

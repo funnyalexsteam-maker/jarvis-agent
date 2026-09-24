@@ -66,6 +66,21 @@
     "handoff-engineering@claude-code-skills": true,
     "security-guidance@claude-code-skills": true,
     "agent-launcher-skills@claude-code-skills": true,
-    "video-content-strategist@claude-code-skills": true
+    "video-content-strategist@claude-code-skills": true,
+    "github@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "mcp-server-dev@claude-plugins-official": true
+  },
+"hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/session-start-memory.mjs"
+          }
+        ]
+      }
+    ]
   }
 }

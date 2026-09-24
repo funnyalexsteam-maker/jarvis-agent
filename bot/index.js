@@ -446,6 +446,30 @@ function formatThinkingPhrase(index, elapsedSec) {
   return `${text} ${emoji}${timer}`;
 }
 
+function truncateLabel(s, n) {
+  if (!s) return "";
+  const str = String(s);
+  return str.length > n ? str.slice(0, n - 1) + "…" : str;
+}
+
+// Turns a tool_use block (name + input) into a short human-readable status line.
+function describeToolUse(name, input = {}) {
+  switch (name) {
+    case "Read": return `👁 Читаю файл: ${basename(input.file_path)}`;
+    case "Write": return `📝 Пишу файл: ${basename(input.file_path)}`;
+    case "Edit": case "NotebookEdit": return `✏️ Правлю файл: ${basename(input.file_path)}`;
+    case "Bash": return `⚙️ ${truncateLabel(input.description || input.command, 60)}`;
+    case "WebSearch": return `🔍 Ищу: ${truncateLabel(input.query, 60)}`;
+    case "WebFetch": return `🌐 Открываю: ${truncateLabel(input.url, 60)}`;
+    case "Grep": return `🔎 Ищу по коду: ${truncateLabel(input.pattern, 60)}`;
+    case "Glob": return `📂 Ищу файлы: ${truncateLabel(input.pattern, 60)}`;
+    case "Task": return `🤖 Субагент «${truncateLabel(input.description || input.subagent_type || "задача", 50)}»`;
+    case "TodoWrite": return `📋 Обновляю план задач`;
+    case "Skill": return `🧩 Скилл: ${truncateLabel(input.skill, 50)}`;
+    default: return `⚙️ ${name}`;
+  }
+}
+
 class StatusMessage {
   constructor(ctx, messageId) {
     this.ctx = ctx;
@@ -458,6 +482,8 @@ class StatusMessage {
     this.stopped = false;
     this.streamingText = "";
     this.rateLimitedUntil = 0;
+    this.toolEntries = []; // { id, label, status: "running" | "done" }
+    this.lastRenderTs = 0;
   }
 
   _activateBreaker(retryAfterSec) {
@@ -482,7 +508,11 @@ class StatusMessage {
     }, 4000);
 
     this.animationInterval = setInterval(async () => {
-      if (this.stopped || this.streamingText || this._isBreakerActive()) return;
+      if (this.stopped || this._isBreakerActive()) return;
+      if (this.toolEntries.length || this.streamingText) {
+        this._render();
+        return;
+      }
       this.phraseIndex = (this.phraseIndex + 1) % THINKING_PHRASES.length;
       const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
       try {
@@ -500,20 +530,56 @@ class StatusMessage {
     this.ctx.api.sendChatAction(this.chatId, "typing").catch(() => {});
   }
 
+  // Records that a tool call started and refreshes the visible status.
+  toolStart(id, name, input) {
+    if (this.stopped) return;
+    this.toolEntries.push({ id, label: describeToolUse(name, input), status: "running" });
+    if (this.toolEntries.length > 20) this.toolEntries.shift();
+    this._render();
+  }
+
+  // Records that a tool call finished and refreshes the visible status.
+  toolDone(id) {
+    if (this.stopped) return;
+    const entry = this.toolEntries.find((e) => e.id === id);
+    if (entry) entry.status = "done";
+    this._render();
+  }
+
   async updateStreaming(text) {
     if (this.stopped) return;
     this.streamingText = text;
-    if (this._isBreakerActive()) return;
-    const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
-    const display = text.length > 3500 ? "…" + text.slice(-3500) : text;
-    const indicator = `\n\n⏳ ${elapsed}с`;
-    try {
-      await this.ctx.api.editMessageText(this.chatId, this.messageId, display + indicator);
-    } catch (e) {
-      if (e?.error_code === 429) {
-        this._activateBreaker(e?.parameters?.retry_after || 30);
+    this._render();
+  }
+
+  // Renders tool activity + streamed answer tail into the single status message.
+  // Throttled to avoid tripping Telegram's edit-rate limit on chatty tool sequences.
+  _render() {
+    if (this.stopped || this._isBreakerActive()) return;
+    const now = Date.now();
+    if (now - this.lastRenderTs < 1200) return;
+
+    const lines = [];
+    if (this.toolEntries.length) {
+      for (const e of this.toolEntries.slice(-8)) {
+        lines.push(`${e.status === "done" ? "✅" : "⏳"} ${e.label}`);
       }
     }
+    if (this.streamingText) {
+      const tail = this.streamingText.length > 500 ? "…" + this.streamingText.slice(-500) : this.streamingText;
+      if (lines.length) lines.push("");
+      lines.push(tail);
+    }
+    if (lines.length === 0) return; // nothing to show yet — leave the thinking-phrase animation alone
+
+    this.lastRenderTs = now;
+    const elapsed = Math.floor((now - this.startTime) / 1000);
+    const timer = elapsed >= 2 ? `⏱ ${elapsed}с\n\n` : "";
+    const text = timer + lines.join("\n");
+    const display = text.length > 3800 ? "…" + text.slice(-3800) : text;
+    this.ctx.api.editMessageText(this.chatId, this.messageId, display).catch((e) => {
+      if (e?.error_code === 429) this._activateBreaker(e?.parameters?.retry_after || 30);
+    });
   }
 
   stop() {
@@ -644,8 +710,8 @@ function isCliBusy() {
   return _activeChild !== null;
 }
 
-function callClaude(prompt, sessionId, { onText } = {}) {
-  const p = _queue.then(() => _callClaudeInner(prompt, sessionId, { onText }));
+function callClaude(prompt, sessionId, { onText, onStatus } = {}) {
+  const p = _queue.then(() => _callClaudeInner(prompt, sessionId, { onText, onStatus }));
   _queue = p.catch(() => {});
   return p;
 }
@@ -662,10 +728,10 @@ function _getSessionSize(sessionId) {
   return 0;
 }
 
-function _callClaudeInner(prompt, sessionId, { onText } = {}) {
+function _callClaudeInner(prompt, sessionId, { onText, onStatus } = {}) {
   return new Promise((resolve, reject) => {
 
-    const useStream = typeof onText === "function";
+    const useStream = typeof onText === "function" || typeof onStatus === "function";
     const args = [
       "-p", prompt,
       "--output-format", useStream ? "stream-json" : "json",
@@ -673,6 +739,8 @@ function _callClaudeInner(prompt, sessionId, { onText } = {}) {
       "--model", getCurrentModel(),
       "--dangerously-skip-permissions",
     ];
+    // stream-json in print mode requires --verbose, otherwise the CLI errors out
+    if (useStream) args.push("--verbose");
 
     const systemPrompt = buildSystemPrompt();
     if (systemPrompt) args.push("--append-system-prompt", systemPrompt);
@@ -711,10 +779,18 @@ function _callClaudeInner(prompt, sessionId, { onText } = {}) {
                 if (block.type === "text" && block.text) {
                   lastText = block.text;
                   const now = Date.now();
-                  if (now - lastStreamTs >= STREAM_THROTTLE_MS) {
+                  if (onText && now - lastStreamTs >= STREAM_THROTTLE_MS) {
                     lastStreamTs = now;
                     onText(lastText);
                   }
+                } else if (block.type === "tool_use" && onStatus) {
+                  onStatus({ event: "start", id: block.id, name: block.name, input: block.input });
+                }
+              }
+            } else if (obj.type === "user" && obj.message?.content && onStatus) {
+              for (const block of obj.message.content) {
+                if (block.type === "tool_result") {
+                  onStatus({ event: "done", id: block.tool_use_id });
                 }
               }
             } else if (obj.type === "result") {
@@ -2478,13 +2554,18 @@ async function handleTextMessage(ctx, text) {
   _activeStatus = status;
   status.start();
 
+  const statusCallback = (evt) => {
+    if (evt.event === "start") status.toolStart(evt.id, evt.name, evt.input);
+    else status.toolDone(evt.id);
+  };
+
   try {
     // Pre-fetch URLs in message (including Google Docs/Sheets)
     const urlContext = await prefetchUrls(text);
     const enrichedPrompt = urlContext ? text + urlContext : text;
 
     const sessionId = sessions.get(userId) || null;
-    let result = await callClaude(enrichedPrompt, sessionId);
+    let result = await callClaude(enrichedPrompt, sessionId, { onStatus: statusCallback });
 
     if (result.sessionId) {
       sessions.set(userId, result.sessionId);
@@ -2496,7 +2577,7 @@ async function handleTextMessage(ctx, text) {
     while (autoContinues < 3 && isResponseTruncated(result.text)) {
       autoContinues++;
       console.log(`[auto-continue] Attempt ${autoContinues} for session ${result.sessionId}`);
-      const contResult = await callClaude("Продолжай.", result.sessionId);
+      const contResult = await callClaude("Продолжай.", result.sessionId, { onStatus: statusCallback });
       if (contResult.sessionId) {
         sessions.set(userId, contResult.sessionId);
         saveSessions();
@@ -2579,7 +2660,12 @@ bot.on("message:voice", async (ctx) => {
 
     const userId = String(ctx.from.id);
     const sessionId = sessions.get(userId) || null;
-    const result = await callClaude(transcript, sessionId);
+    const result = await callClaude(transcript, sessionId, {
+      onStatus: (evt) => {
+        if (evt.event === "start") status.toolStart(evt.id, evt.name, evt.input);
+        else status.toolDone(evt.id);
+      },
+    });
 
     if (result.sessionId) {
       sessions.set(userId, result.sessionId);

@@ -244,7 +244,13 @@ loadOwner();
 
 function isOwner(ctx) {
   if (!_ownerId) return false; // No owner yet — only /start can set it
-  return String(ctx.from?.id) === String(_ownerId);
+  const id = String(ctx.from?.id);
+  if (id === String(_ownerId)) return true;
+  const extraIds = (process.env.EXTRA_OWNER_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return extraIds.includes(id);
 }
 
 // ─── SPEND TRACKING ─────────────────────────────────────────────────────────
@@ -2737,8 +2743,10 @@ bot.start({
 
     console.log(`Agent bot v${BOT_VERSION} started (workspace: ${WORKSPACE}, projects: ${PROJECTS})`);
     console.log(`Model: ${getCurrentModel()}, Bootstrap: ${state.bootstrapDone ? "done" : "pending"}`);
-    if (_ownerId) console.log(`Owner: ${_ownerId} (only owner can use bot)`);
-    else console.log("No owner yet — first /start will auto-lock");
+    if (_ownerId) {
+      const extra = (process.env.EXTRA_OWNER_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+      console.log(`Owner: ${_ownerId}${extra.length ? ` + extra owners: ${extra.join(", ")}` : ""} (only these can use bot)`);
+    } else console.log("No owner yet — first /start will auto-lock");
   },
   drop_pending_updates: true,
 });

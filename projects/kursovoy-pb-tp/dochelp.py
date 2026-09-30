@@ -282,6 +282,7 @@ class Report:
 
     def formula(self, latex, number):
         """Формула по центру, номер справа в скобках (одна строка, табуляции)."""
+        self._ref_formula(number)
         par = self.d.add_paragraph()
         pf = par.paragraph_format
         pf.line_spacing = 1.5
@@ -293,6 +294,21 @@ class Report:
         r2 = par.add_run("\t(" + number + ")")
         r2.font.name, r2.font.size = FONT, Pt(14)
         return par
+
+    def _ref_formula(self, number):
+        """Ссылка на формулу в тексте: дописываем «(N)» к предшествующему абзацу."""
+        pars = self.d.paragraphs
+        if not pars:
+            return
+        last = pars[-1]
+        txt = last.text.rstrip()
+        if not txt or last._p.findall(qn("m:oMath")) or f"({number})" in txt:
+            return
+        ref = f" ({number})"
+        if txt.endswith(":"):
+            last.runs[-1].text = last.runs[-1].text.rstrip()[:-1] + ref + ":"
+        else:
+            last.runs[-1].text = last.runs[-1].text.rstrip() + ref
 
     def where(self, items):
         """Блок «где ...» — каждая позиция с новой строки, без красной строки."""

@@ -188,7 +188,7 @@ def outside():
     phi_star = 3600.0 * Ip / (Vsv * mx["A"])       # кг/м³ (ф. 8, m = Iр·τ)
     phi_vol = phi_star * Vt / v["M"]               # об. доли (ф. 9)
     return dict(Vroom=Vroom, Vsv=Vsv, phi_s=phi_s, Gp=Gp, rho_p=rho_p, Vvok=Vvok,
-                Vlim=0.05 * Vsv, local_load=(Vvok < 0.05 * Vsv),
+                Vlim=0.5 * Vsv, local_load=(Vvok < 0.5 * Vsv),
                 Vcomm=Vcomm, Cc=Cc, K=K, Ip=Ip, phi_star=phi_star,
                 phi_vol_pct=100 * phi_vol, half_lel=0.5 * v["lel"],
                 local_leak=(100 * phi_vol < 0.5 * v["lel"]),
@@ -249,7 +249,7 @@ def accident():
                 V_pipe=V_pipe, V_liq=V_liq, rho=rho, m_liq=m_liq, phi_v=phi_v, V_h=V_h, m_h=m_h,
                 Fr=Fr, Fi=Fi, eta=et, Pn=Pn, W=W, comp=comp, W_sum=W, tau_full=tau_full, tau=tau, m=m,
                 y=y, M=M, Vt=Vt, rho_p=rho_p, lel=lel, uel=ch["uel"], lel_kg=lel_kg, Vvok=Vvok,
-                Vvok_lim=0.05 * Vsv, Cavg=Cavg, q=q, a_v=a_v, tg0=tg0, tg1=tg1,
+                Vvok_lim=0.5 * Vsv, Cavg=Cavg, q=q, a_v=a_v, tg0=tg0, tg1=tg1,
                 c_steady=c_steady, beta=beta, Cst=Cst, Pmax=Pmax, P0=P0, Kn=Kn, Z=Z,
                 dP=dP, m_crit=m_crit, Qn=Qn,
                 applic_lhs=Cavg, applic_rhs=0.5 * lel,

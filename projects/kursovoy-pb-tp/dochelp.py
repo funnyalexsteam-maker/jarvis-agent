@@ -9,6 +9,9 @@ from docx.oxml.ns import qn, nsdecls
 from docx.shared import Cm, Mm, Pt, RGBColor
 
 FONT = "Times New Roman"
+# сквозная нумерация таблиц: внутренний номер (раздел.№) -> номер в документе
+TAB = {"1.1": "1", "1.2": "2", "2.1": "3", "2.2": "4", "3.1": "5", "3.2": "6", "3.3": "7",
+       "4.1": "8", "6.1": "9", "7.1": "10", "7.2": "11", "8.1": "12", "8.2": "13", "9.1": "14"}
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
 
@@ -301,6 +304,7 @@ class Report:
 
     # -- tables
     def table_title(self, num, title):
+        num = TAB.get(num, num)
         par = self.p("", indent=False, align="left", keep_next=True, line=1.15)
         add_runs(par, f"Таблица {num} – {title}")
         return par

@@ -306,7 +306,7 @@ class Report:
     def table_title(self, num, title):
         num = TAB.get(num, num)
         par = self.p("", indent=False, align="left", keep_next=True, line=1.15)
-        add_runs(par, f"Таблица {num} – {title}")
+        add_runs(par, f"Таблица {num} {title}")
         return par
 
     def table(self, rows, widths_mm, header_rows=1, size=11, align=None, bold_first_col=False):

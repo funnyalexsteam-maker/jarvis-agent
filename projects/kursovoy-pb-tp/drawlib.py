@@ -7,8 +7,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle, Polygon, Ellipse, FancyArrowPatch
 
-plt.rcParams["font.family"] = "DejaVu Sans"
+# шрифт чертежей: osifont — ISO 3098, тип B (наклон 15°), аналог ГОСТ 2.304 «GOST type B»
+from matplotlib import font_manager as _fm
+for _p in ("/usr/share/fonts/truetype/osifont/osifont.ttf", "/usr/share/fonts/truetype/osifont/osifont-italic.ttf"):
+    _fm.fontManager.addfont(_p)
+plt.rcParams["font.family"] = ["osifont", "DejaVu Sans"]
+plt.rcParams["font.style"] = "italic"
 plt.rcParams["pdf.fonttype"] = 42
+KF = 1.3          # osifont уже DejaVu — масштаб кегля, чтобы высота цифр была ≥ 2,5–3,5 мм
 RED = "#e00000"
 BLK = "#000000"
 LW = 0.9          # основная линия, pt (≈0,32 мм)
@@ -40,9 +46,10 @@ class Canvas:
 
     def text(self, x, y, s, size=9, ha="left", va="center", c=BLK, bold=False, rot=0,
              italic=False, z=5, wrap=None):
-        self.ax.text(x, y, s, fontsize=size, ha=ha, va=va, color=c, rotation=rot, zorder=z,
+        s = s.replace("ё", "е").replace("Ё", "Е")          # в osifont нет корректных глифов ё/Э
+        self.ax.text(x, y, s, fontsize=size * KF, ha=ha, va=va, color=c, rotation=rot, zorder=z,
                      fontweight="bold" if bold else "normal",
-                     fontstyle="italic" if italic else "normal", linespacing=1.15)
+                     fontstyle="italic", linespacing=1.15)
 
     def arrow(self, p0, p1, lw=LW, c=BLK, ms=7):
         self.ax.add_patch(FancyArrowPatch(p0, p1, arrowstyle="-|>", mutation_scale=ms,
@@ -168,7 +175,7 @@ def draw_scheme(v, marks=False):
     v.text(108, 79, "смеситель\nV = 0,7 м³", size=7, ha="right", c=RED)
     # рубашка / горячая вода
     v.arrow((78, 100), (90, 100), c=BLK)
-    v.text(66, 106, "Горячая вода\n40…60 °C", size=7, ha="center")
+    v.text(66, 106, "Горячая вода\n40–60 °C", size=7, ha="center")
     v.arrow((130, 82), (142, 82))
     v.text(143, 82, "Конденсат / вода", size=7)
     # выход смесителя -> насос 5 -> фильтр 6 -> баки 7
@@ -339,7 +346,7 @@ PT = 0.3528      # мм в одном пункте
 
 
 def wrap(s, width_mm, size):
-    n = max(4, int(width_mm / (0.205 * size)))
+    n = max(4, int(width_mm / (0.44 * PT * size * KF)))
     out = []
     for para in str(s).split("\n"):
         out += textwrap.wrap(para, n) or [""]
@@ -348,7 +355,7 @@ def wrap(s, width_mm, size):
 
 def table(cv, x, y, cols, rows, size=8, head=1, pad=1.2, bold_head=True, max_h=None):
     """Таблица с переносом текста. Возвращает y нижней границы."""
-    lh = size * PT * 1.22
+    lh = size * KF * PT * 1.22
     cy = y
     for ri, row in enumerate(rows):
         cells = [wrap(c, w - 2 * pad, size) for c, w in zip(row, cols)]

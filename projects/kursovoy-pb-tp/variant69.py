@@ -8,8 +8,8 @@ import os
 from dochelp import Report, fmt as F, WD_ALIGN_PARAGRAPH
 import calc
 
-REGION = "г. Новосибирск"      # ← заменить по первой букве фамилии (табл. 2.2)
-REGION_T = 38.0                # ← абс. максимум температуры воздуха региона, °C
+REGION = "г. Нальчик"          # Кузнецов → «К» → группа 4 (табл. 2.2)
+REGION_T = 40.0                # абс. максимум региона, °C (по памяти — сверить с СП 131.13330)
 
 COMP = {
     "ethanol": dict(name="Этиловый спирт", formula="C2H6O", M=46.07, t_flash=13, t_auto=400, lel=3.6, uel=19.0,

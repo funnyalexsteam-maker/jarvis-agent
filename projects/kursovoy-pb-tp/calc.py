@@ -18,6 +18,7 @@ INPUT = dict(
                q_lps=2.3, t_tech=22.0, P_mpa=0.35, u=0.5, A=8.0,
                shutdown="manual"),            # табл. 3.3, блок «Смесители», колонка 3
     composition={"toluene": 0.62, "acetone": 0.26, "butylacetate": 0.12},  # Р-4, % масс.
+    hazard="acetone",        # наиболее опасное вещество (min t_всп) — по нему ведутся расчёты
     P0=101.325,              # кПа
 )
 
@@ -27,7 +28,7 @@ INPUT = dict(
 COMP = {
     "acetone": dict(name="Ацетон", formula="C3H6O", nC=3, nH=6, nO=1, M=58.08,
                     t_flash=-18, t_auto=535, A=6.37551, B=1281.721, C=237.088,
-                    Qn=31360, lel=2.7, uel=13.0, rho=791.0),
+                    Qn=31360, lel=2.7, uel=13.0, rho=791.0, tn_ref=-20.0, tv_ref=6.0),
     "toluene": dict(name="Толуол", formula="C7H8", nC=7, nH=8, nO=0, M=92.14,
                     t_flash=7, t_auto=535, A=6.0507, B=1328.171, C=217.713,
                     Qn=40936, lel=1.27, uel=7.0, rho=867.0),
@@ -74,34 +75,44 @@ def mixture():
     x = {k: n[k] / sn for k in w}                        # мольные доли жидкости
     rho = 1.0 / sum(w[k] / COMP[k]["rho"] for k in w)    # кг/м³, аддитивность объёмов
     M_liq = 1.0 / sn                                     # кг/кмоль, «средняя» молярная масса
-    return dict(w=w, x=x, rho=rho, M_liq=M_liq)
+    vol = {k: w[k] / COMP[k]["rho"] * rho for k in w}    # объёмные доли компонентов
+    return dict(w=w, x=x, rho=rho, M_liq=M_liq, vol=vol)
 
 
 def vapor(t, mix=None):
-    """Пар над смесью при t (закон Рауля): парциальные давления, состав, пределы."""
+    """Насыщенный пар наиболее опасного вещества (INPUT['hazard']) при t, °C."""
+    h = INPUT["hazard"]
+    c = COMP[h]
+    ps = p_sat(c, t)
+    return dict(p={h: ps}, ps=ps, y={h: 1.0}, lel=c["lel"], uel=c["uel"], M=c["M"],
+                phi=100.0 * ps / INPUT["P0"])          # при 101,3 кПа, % об.
+
+
+def vapor_mix(t, mix=None):
+    """Пар над раствором Р-4 (закон Рауля, правило Ле Шателье) — справочно."""
     mix = mix or mixture()
     p = {k: mix["x"][k] * p_sat(COMP[k], t) for k in COMP}
     ps = sum(p.values())
-    y = {k: p[k] / ps for k in p}                        # мольные доли в паре
-    lel = 1.0 / sum(y[k] / COMP[k]["lel"] for k in y)    # % об., Ле Шателье
+    y = {k: p[k] / ps for k in p}
+    lel = 1.0 / sum(y[k] / COMP[k]["lel"] for k in y)
     uel = 1.0 / sum(y[k] / COMP[k]["uel"] for k in y)
-    M = sum(y[k] * COMP[k]["M"] for k in y)              # кг/кмоль
-    return dict(p=p, ps=ps, y=y, lel=lel, uel=uel, M=M,
-                phi=100.0 * ps / INPUT["P0"])            # насыщенный пар при 101,3 кПа, % об.
+    return dict(p=p, ps=ps, y=y, lel=lel, uel=uel, M=sum(y[k] * COMP[k]["M"] for k in y),
+                phi=100.0 * ps / INPUT["P0"])
 
 
 def temp_limits(mix=None):
-    """Температурные пределы распространения пламени смеси Р-4, °C."""
-    mix = mix or mixture()
-    lo = bisect(lambda t: vapor(t, mix)["phi"] - vapor(t, mix)["lel"], -60, 60)
-    hi = bisect(lambda t: vapor(t, mix)["phi"] - vapor(t, mix)["uel"], -60, 120)
-    return lo, hi
+    """Температурные пределы распространения пламени наиболее опасного вещества, °C (справочные)."""
+    c = COMP[INPUT["hazard"]]
+    return c["tn_ref"], c["tv_ref"]
 
 
 def component_limits():
-    """Температурные пределы индивидуальных веществ по Антуану (ф. 33, 34)."""
+    """Температурные пределы компонентов: справочные (если есть) или по Антуану (ф. 33, 34)."""
     out = {}
     for k, c in COMP.items():
+        if "tn_ref" in c:
+            out[k] = (c["tn_ref"], c["tv_ref"])
+            continue
         tn = t_from_p(c, c["lel"] / 100 * INPUT["P0"])
         tv = t_from_p(c, c["uel"] / 100 * INPUT["P0"])
         out[k] = (tn, tv)
@@ -186,8 +197,11 @@ def outside():
 
 # ------------------------------------------- раздел 7: полное разрушение ----
 def accident():
-    """Расчётная авария: полное разрушение смесителя (прил. 9, 7) и ΔP (СП 12.13130)."""
+    """Расчётная авария: полное разрушение смесителя (прил. 9, 7) и ΔP (СП 12.13130).
+    Расчёт ведётся по наиболее опасному веществу — его доля в разлившейся жидкости."""
     R, mx, T = INPUT["room"], INPUT["mixer"], INPUT["t_air_max"]
+    h = INPUT["hazard"]
+    ch = COMP[h]
     mix = mixture()
     Vsv = 0.8 * R["a"] * R["b"] * R["h"]
     Fp = R["a"] * R["b"]
@@ -196,58 +210,48 @@ def accident():
     V_app = mx["V"] * mx["eps"]
     V_pump = mx["q_lps"] / 1000.0 * tau_off
     V_pipe = (mx["L_in"] + mx["L_out"]) * f
-    V_liq = V_app + V_pump + V_pipe
+    V_liq = V_app + V_pump + V_pipe                      # растворитель Р-4, м³
     rho = mix["rho"]
     m_liq = V_liq * rho                                  # ф. 9.9
+    phi_v = mix["vol"][h]                                # объёмная доля наиболее опасного вещества
+    V_h = V_liq * phi_v
+    m_h = V_h * ch["rho"]                                # масса наиболее опасного вещества
     fr = 1.0                                             # м²/л (растворителя > 70 %)
     Fr = fr * V_liq * 1000.0
     Fi = min(Fr, Fp)                                     # ф. 9.11
     et = eta(mx["u"], T)
-    comp = {}
-    for k, c in COMP.items():
-        Pn = mix["x"][k] * p_sat(c, T)                   # кПа, закон Рауля
-        W = 1e-6 * et * math.sqrt(c["M"]) * Pn           # ф. 7.1, кг/(с·м²)
-        comp[k] = dict(Pn=Pn, W=W)
-    W_sum = sum(c["W"] for c in comp.values())
-    tau_full = m_liq / (W_sum * Fi)                      # ф. 9.10
+    Pn = p_sat(ch, T)                                    # кПа
+    W = 1e-6 * et * math.sqrt(ch["M"]) * Pn              # ф. 7.1, кг/(с·м²)
+    tau_full = m_h / (W * Fi)                            # ф. 9.10
     tau = min(3600.0, tau_full)
-    for k in comp:
-        comp[k]["m"] = comp[k]["W"] * Fi * tau           # ф. 16
-    m = sum(c["m"] for c in comp.values())
-    nmol = {k: comp[k]["m"] / COMP[k]["M"] for k in comp}
-    sn = sum(nmol.values())
-    y = {k: nmol[k] / sn for k in comp}                  # состав поступивших паров
-    M = m / sn
+    m = min(W * Fi * tau, m_h)                           # ф. 16
+    comp = {h: dict(Pn=Pn, W=W, m=m)}
+    y = {h: 1.0}
+    M = ch["M"]
     Vt = 22.4135 * (1 + 0.00367 * T)                     # ф. 18
     rho_p = M / Vt
-    lel = 1.0 / sum(y[k] / COMP[k]["lel"] for k in y)
+    lel = ch["lel"]
     lel_kg = M * (lel / 100.0) / Vt                      # ф. 9.13, кг/м³
     Vvok = m / lel_kg * 2.0                              # ф. 9.12, Kб = 2
     Cavg = 100.0 * m / (rho_p * Vsv)                     # ф. 19, %
-    # ф. 9.17/9.18, 9.15, 9.16 — время образования ВОК
     q = m / (rho_p * tau)
     a_v = mx["A"] * Vsv / 3600.0
     phi_n = lel / 100.0
     tg0 = Vsv / q * math.log(1.0 / (1.0 - phi_n))
     tg1 = Vsv / (a_v + q) * math.log(q / (q - (a_v + q) * phi_n))
     c_steady = 100.0 * q / (a_v + q)
-    # ---- раздел 8: ΔP по СП 12.13130.2009, прил. А
     beta, Cst = stoich(mix, y)
     Pmax, P0, Kn, Z = 900.0, 101.0, 3.0, 0.3
     dP = (Pmax - P0) * m * Z / (Vsv * rho_p) * 100.0 / Cst / Kn
-    # физический предел по насыщению (для оценки чувствительности)
-    vs = vapor(T, mix)
-    m_sat = vs["phi"] / 100.0 * rho_p * Vsv
-    dP_sat = (Pmax - P0) * m_sat * Z / (Vsv * rho_p) * 100.0 / Cst / Kn
-    # ф. 9.9 для «замены» — теплота сгорания смеси паров
-    Qn = sum(comp[k]["m"] * COMP[k]["Qn"] for k in comp) / m
+    m_crit = 5.0 * m / dP                                # масса паров, при которой ΔP = 5 кПа
+    Qn = ch["Qn"]
     return dict(Vsv=Vsv, Fp=Fp, tau_off=tau_off, f=f, V_app=V_app, V_pump=V_pump,
-                V_pipe=V_pipe, V_liq=V_liq, rho=rho, m_liq=m_liq, Fr=Fr, Fi=Fi,
-                eta=et, comp=comp, W_sum=W_sum, tau_full=tau_full, tau=tau, m=m,
-                y=y, M=M, Vt=Vt, rho_p=rho_p, lel=lel, lel_kg=lel_kg, Vvok=Vvok,
+                V_pipe=V_pipe, V_liq=V_liq, rho=rho, m_liq=m_liq, phi_v=phi_v, V_h=V_h, m_h=m_h,
+                Fr=Fr, Fi=Fi, eta=et, Pn=Pn, W=W, comp=comp, W_sum=W, tau_full=tau_full, tau=tau, m=m,
+                y=y, M=M, Vt=Vt, rho_p=rho_p, lel=lel, uel=ch["uel"], lel_kg=lel_kg, Vvok=Vvok,
                 Vvok_lim=0.05 * Vsv, Cavg=Cavg, q=q, a_v=a_v, tg0=tg0, tg1=tg1,
                 c_steady=c_steady, beta=beta, Cst=Cst, Pmax=Pmax, P0=P0, Kn=Kn, Z=Z,
-                dP=dP, m_sat=m_sat, dP_sat=dP_sat, Qn=Qn,
+                dP=dP, m_crit=m_crit, Qn=Qn,
                 applic_lhs=Cavg, applic_rhs=0.5 * lel,
                 applic=(Cavg < 0.5 * lel),
                 category="А" if dP > 5.0 else "не А")

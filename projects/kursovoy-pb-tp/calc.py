@@ -187,7 +187,7 @@ def outside():
     Ip = K * Cc * Vcomm * math.sqrt(v["M"] / (t + 273.0))
     phi_star = 3600.0 * Ip / (Vsv * mx["A"])       # кг/м³ (ф. 8, m = Iр·τ)
     phi_vol = phi_star * Vt / v["M"]               # об. доли (ф. 9)
-    return dict(Vroom=Vroom, Vsv=Vsv, phi_s=phi_s, Gp=Gp, rho_p=rho_p, Vvok=Vvok,
+    return dict(Vroom=Vroom, Vsv=Vsv, Vt=Vt, phi_s=phi_s, Gp=Gp, rho_p=rho_p, Vvok=Vvok,
                 Vlim=0.5 * Vsv, local_load=(Vvok < 0.5 * Vsv),
                 Vcomm=Vcomm, Cc=Cc, K=K, Ip=Ip, phi_star=phi_star,
                 phi_vol_pct=100 * phi_vol, half_lel=0.5 * v["lel"],

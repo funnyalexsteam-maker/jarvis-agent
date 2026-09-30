@@ -61,7 +61,7 @@ def _mr(text, plain=False):
 
 
 GREEK = dict(rho="ρ", varepsilon="ε", tau="τ", varphi="φ", delta="δ", eta="η", mu="μ",
-             beta="β", alpha="α", omega="ω", lambda_="λ", lam="λ", Sigma="Σ", Delta="Δ",
+             beta="β", alpha="α", omega="ω", lam="λ", Sigma="Σ", Delta="Δ",
              theta="θ", gamma="γ", nu="ν", pi="π", phi="φ", sigma="σ")
 
 
@@ -122,6 +122,8 @@ class _P:
                 return _mr(" ", True)
             if name in self.FUNCS:
                 return _mr(name, True)
+            if name == "lambda":
+                return _mr("λ")
             if name in GREEK:
                 return _mr(GREEK[name])
             raise ValueError(name)
@@ -343,8 +345,9 @@ class Report:
         self.p("", indent=False, line=0.6)
         return t
 
-    def image(self, path, width_mm, caption):
+    def image(self, path, width_mm, caption, page_break=False):
         par = self.p("", indent=False, align="center", keep_next=True, line=1.0)
+        par.paragraph_format.page_break_before = page_break
         par.add_run().add_picture(path, width=Mm(width_mm))
         self.p(caption, indent=False, align="center", line=1.15, space_after=8)
 
@@ -352,4 +355,7 @@ class Report:
         self.d.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
     def save(self, path):
+        z = self.d.settings.element.find(qn("w:zoom"))
+        if z is not None and z.get(qn("w:percent")) is None:
+            z.set(qn("w:percent"), "100")
         self.d.save(path)

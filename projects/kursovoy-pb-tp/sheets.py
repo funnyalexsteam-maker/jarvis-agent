@@ -167,6 +167,16 @@ def figures(R):
     cv = Canvas(190, 62)
     draw_section(View(cv, 25, 10, 10.0, fs=1.0), a["a"], a["h"])
     cv.save(os.path.join(OUT, "fig_section"), dpi=170)
+    # рисунки для docx (реальный размер, читаемые подписи)
+    cv = Canvas(180, 74)
+    draw_scheme(View(cv, 2, 1, 0.49, fs=0.95))
+    cv.save(os.path.join(OUT, "fig_scheme_small"), dpi=220)
+    cv = Canvas(190, 125)
+    draw_plan(View(cv, 22, 22, 10.0, fs=1.0), a["a"], a["b"], marks=False)
+    cv.save(os.path.join(OUT, "fig_plan_doc"), dpi=200)
+    cv = Canvas(190, 55)
+    draw_section(View(cv, 22, 8, 10.0, fs=1.0), a["a"], a["h"])
+    cv.save(os.path.join(OUT, "fig_section_doc"), dpi=200)
 
 
 def build_all(R=None):

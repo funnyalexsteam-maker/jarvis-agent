@@ -228,9 +228,9 @@ def draw_plan(v, W=13.0, D=9.2, marks=True):
     v.rect(-0.4, -0.4, W + 0.8, D + 0.8, fc="#cfcfcf", lw=LW, z=0.5)
     v.rect(0, 0, W, D, fc="white", lw=LW, z=1)
     # ЛСК (остеклённые проёмы) в верхней стене
-    for x0 in (2.6, 5.4, 8.2):
-        v.rect(x0, -0.4, 1.8, 0.4, fc="#bfe3ff", lw=LW_THIN, z=4)
-    v.text(2.6, -0.85, "ЛСК (остекление)", size=6.5)
+    for x0 in (0.8, 5.0, 9.2):
+        v.rect(x0, -0.4, 3.0, 0.4, fc="#bfe3ff", lw=LW_THIN, z=4)
+    v.text(0.8, -0.85, "ЛСК 3 × (3,0 × 2,4 м)", size=6.5)
     # дверь с тамбур-шлюзом (низ, справа)
     v.rect(11.0, D - 0.05, 1.3, 0.5, fc="white", lw=LW, z=4)
     v.line([(11.0, D + 0.02), (11.0, D + 0.85)], lw=LW_THIN, z=5)
@@ -303,7 +303,7 @@ def draw_section(v, W=13.0, H=3.5):
     v.line([(0, 0), (0, H)], lw=LW * 1.6)
     v.line([(W, 0), (W, H)], lw=LW * 1.6)
     # ЛСК в торцевой стене
-    v.rect(-0.12, 0.7, 0.12, 1.3, fc="#bfe3ff", lw=LW_THIN, z=4)
+    v.rect(-0.12, 0.2, 0.12, 2.4, fc="#bfe3ff", lw=LW_THIN, z=4)
     # смеситель на опорах
     v.rect(4.18, H - 0.5 - 1.26, 0.84, 1.26, c=RED, lw=LW * 1.8)
     v.line([(4.35, H - 0.5), (4.35, H)], c=RED)
